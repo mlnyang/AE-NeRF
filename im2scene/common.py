@@ -1,6 +1,8 @@
 import torch
 import numpy as np
+import pdb 
 import logging
+
 logger_py = logging.getLogger(__name__)
 
 
@@ -35,14 +37,14 @@ def arange_pixels(resolution=(128, 128), batch_size=1, image_range=(-1., 1.),
     pixel_scaled[:, :, 1] = scale * pixel_scaled[:, :, 1] / (h - 1) - loc
 
     # Subsample points if subsample_to is not None and > 0
-    if (subsample_to is not None and subsample_to > 0 and
+    if (subsample_to is not None and subsample_to > 0 and       # False -> pass!
             subsample_to < n_points):
         idx = np.random.choice(pixel_scaled.shape[1], size=(subsample_to,),
                                replace=False)
         pixel_scaled = pixel_scaled[:, idx]
         pixel_locations = pixel_locations[:, idx]
 
-    if invert_y_axis:
+    if invert_y_axis:       # False -> pass!
         assert(image_range == (-1, 1))
         pixel_scaled[..., -1] *= -1.
         pixel_locations[..., -1] = (h - 1) - pixel_locations[..., -1]
@@ -113,7 +115,7 @@ def transform_to_world(pixels, depth, camera_mat, world_mat, scale_mat=None,
     p_world = scale_mat @ world_mat @ camera_mat @ pixels
 
     # Transform p_world back to 3D coordinates
-    p_world = p_world[:, :3].permute(0, 2, 1)
+    p_world = p_world[:, :3].permute(0, 2, 1)       # 다 동일한 값으로 origins 존재!
 
     if is_numpy:
         p_world = p_world.numpy()
@@ -162,18 +164,18 @@ def origin_to_world(n_points, camera_mat, world_mat, scale_mat=None,
     p[:, -1] = 1.
 
     if scale_mat is None:
-        scale_mat = torch.eye(4).unsqueeze(
+        scale_mat = torch.eye(4).unsqueeze(     # take this value
             0).repeat(batch_size, 1, 1).to(device)
 
     # Invert matrices
-    if invert:
+    if invert:      # False
         camera_mat = torch.inverse(camera_mat)
         world_mat = torch.inverse(world_mat)
         scale_mat = torch.inverse(scale_mat)
 
-    # Apply transformation
-    p_world = scale_mat @ world_mat @ camera_mat @ p
-
+    # Apply transformation  # origin mat -> camera mat -> world mat 
+    p_world = scale_mat @ world_mat @ camera_mat @ p     # (batch, 4, resxres)   # scale mat: identity   
+    # pdb.set_trace()
     # Transform points back to 3D coordinates
     p_world = p_world[:, :3].permute(0, 2, 1)
     return p_world

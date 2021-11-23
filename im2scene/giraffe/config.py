@@ -30,6 +30,8 @@ def get_model(cfg, device=None, len_dataset=0, **kwargs):
     z_dim = cfg['model']['z_dim']
     z_dim_bg = cfg['model']['z_dim_bg']
     img_size = cfg['data']['img_size']
+    range_u = cfg['training']['range_u']
+    range_v = cfg['training']['range_v']
 
     # Load always the decoder
     decoder = models.decoder_dict[decoder](
@@ -57,7 +59,7 @@ def get_model(cfg, device=None, len_dataset=0, **kwargs):
             device, z_dim=z_dim, z_dim_bg=z_dim_bg, decoder=decoder,
             background_generator=background_generator,
             bounding_box_generator=bounding_box_generator,
-            neural_renderer=neural_renderer, **generator_kwargs)
+            neural_renderer=neural_renderer, range_u=range_u, range_v= range_v, **generator_kwargs)
 
     if cfg['test']['take_generator_average']:
         generator_test = deepcopy(generator)
@@ -84,20 +86,25 @@ def get_trainer(model, optimizer, optimizer_d, cfg, device, **kwargs):
     '''
     out_dir = cfg['training']['out_dir']
     vis_dir = os.path.join(out_dir, 'vis')
+    val_vis_dir = os.path.join(out_dir, 'val')
     overwrite_visualization = cfg['training']['overwrite_visualization']
     multi_gpu = cfg['training']['multi_gpu']
     n_eval_iterations = (
-        cfg['training']['n_eval_images'] // cfg['training']['batch_size'])
+        cfg['training']['n_eval_images'] // cfg['training']['batch_size'])     # n_eval_images
 
     fid_file = cfg['data']['fid_file']
     assert(fid_file is not None)
     fid_dict = np.load(fid_file)
+    batch_size = cfg['training']['batch_size']
+    recon_weight = cfg['training']['recon_weight']
 
     trainer = training.Trainer(
-        model, optimizer, optimizer_d, device=device, vis_dir=vis_dir,
+        model, optimizer, optimizer_d, device=device, vis_dir=vis_dir, val_vis_dir=val_vis_dir,
         overwrite_visualization=overwrite_visualization, multi_gpu=multi_gpu,
         fid_dict=fid_dict,
         n_eval_iterations=n_eval_iterations,
+        batch_size = batch_size,
+        recon_weight = recon_weight
     )
 
     return trainer

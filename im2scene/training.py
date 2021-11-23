@@ -8,7 +8,7 @@ class BaseTrainer(object):
     ''' Base trainer class.
     '''
 
-    def evaluate(self, *args, **kwargs):
+    def evaluate(self, data, *args, **kwargs):
         ''' Performs an evaluation.
         '''
         eval_list = defaultdict(list)
@@ -71,3 +71,5 @@ def compute_bce(d_out, target):
     targets = d_out.new_full(size=d_out.size(), fill_value=target)
     loss = F.binary_cross_entropy_with_logits(d_out, targets)
     return loss
+
+

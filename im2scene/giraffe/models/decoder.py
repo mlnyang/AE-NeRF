@@ -98,6 +98,7 @@ class Decoder(nn.Module):
                  for i in range(n_blocks_view - 1)])
 
     def transform_points(self, p, views=False):
+
         # Positional encoding
         # normalize p between [-1, 1]
         p = p / self.downscale_p_by
@@ -154,5 +155,4 @@ class Decoder(nn.Module):
 
         if self.final_sigmoid_activation:
             feat_out = torch.sigmoid(feat_out)
-
         return feat_out, sigma_out

@@ -1,10 +1,11 @@
 method: giraffe
 data:
   dataset_name: images
-  path: data/comprehensive_cars/images/*.jpg
+  path: data/images/*.png
+  pose_path: data/carla_poses
   classes: []
   img_size: 64
-  fid_file: null
+  fid_file: data/fid_files/carla_128.npz
   random_crop: False
   celebA_center_crop: False
   use_tanh_range: False
@@ -20,7 +21,7 @@ model:
   decoder_kwargs: {}
   discriminator_kwargs: {}
   generator_kwargs: {}
-  bounding_box_generator_kwargs: {}
+  bounding_box_generator_kwargs: {}     # 
   neural_renderer_kwargs: {}
   background_generator_kwargs:
     hidden_size: 64
@@ -28,15 +29,15 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir:  out/00
-  batch_size: 32
+  out_dir: out/check-uv
+  batch_size: 16
   print_every: 10
   checkpoint_every: 500
-  visualize_every: 1000
+  visualize_every: 500
   validate_every: 10000
   backup_every: 1000000
-  learning_rate: 0.0005
-  learning_rate_d: 0.0001
+  learning_rate: 0.0001   # 1e-4 
+  learning_rate_d: 0.000001  # 1e-6
   model_selection_metric: fid_score
   model_selection_mode: minimize
   n_workers: 8
@@ -46,6 +47,9 @@ training:
   optimizer: RMSprop
   optimizer_kwargs: {}
   n_eval_images: 10000
+  range_u: [0, 1]
+  range_v: [0.05, 0.5]
+  recon_weight:  10.
 test:
   model_file: model_best.pt
   n_images: 20000

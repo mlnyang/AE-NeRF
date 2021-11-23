@@ -149,10 +149,8 @@ class Trainer(BaseTrainer):
         d_real = discriminator(x_real)
 
         d_loss_real = compute_bce(d_real, 1)
-        loss_d_full += d_loss_real
 
         reg = 10. * compute_grad2(d_real, x_real).mean()
-        loss_d_full += reg
 
         with torch.no_grad():
             x_fake = generator(z)
@@ -161,8 +159,8 @@ class Trainer(BaseTrainer):
         d_fake = discriminator(x_fake)
 
         d_loss_fake = compute_bce(d_fake, 0)
-        loss_d_full += d_loss_fake
 
+        loss_d_full = (d_loss_real + d_loss_fake)/2 + reg
         loss_d_full.backward()
         self.optimizer_d.step()
 
@@ -179,7 +177,6 @@ class Trainer(BaseTrainer):
         gen = self.model.generator_test
         if gen is None:
             gen = self.model.generator
-
         with torch.no_grad():
             image_fake = self.generator(self.visualize_z).cpu()
             # rescale

@@ -57,6 +57,7 @@ def get_trainer(model, optimizer, optimizer_d, cfg, device,
     '''
     out_dir = cfg['training']['out_dir']
     vis_dir = os.path.join(out_dir, 'vis')
+    val_vis_dir = os.path.join(out_dir, 'val')
     overwrite_visualization = cfg['training']['overwrite_visualization']
     multi_gpu = cfg['training']['multi_gpu']
     n_eval_iterations = 10000 // cfg['training']['batch_size']
@@ -64,7 +65,7 @@ def get_trainer(model, optimizer, optimizer_d, cfg, device,
     assert(cfg['data']['fid_file'] is not None)
     fid_dict = np.load(cfg['data']['fid_file'])
     trainer = training.Trainer(
-        model, optimizer, optimizer_d, device=device, vis_dir=vis_dir,
+        model, optimizer, optimizer_d, device=device, vis_dir=vis_dir, val_vis_dir=val_vis_dir,
         overwrite_visualization=overwrite_visualization, multi_gpu=multi_gpu,
         fid_dict=fid_dict,
         n_eval_iterations=n_eval_iterations)

@@ -78,3 +78,24 @@ np.savez(out_dict_file, **out_dict)
 
 # Save a grid of 16x16 images for visualization
 save_image(make_grid(img_fake[:256], nrow=16, pad_value=1.), out_vis_file)
+
+
+
+fid_file = cfg['data']['fid_file']
+assert(fid_file is not None)
+fid_dict = np.load(cfg['data']['fid_file'])
+
+
+img_uint8 = (img_fake * 255).cpu().numpy().astype(np.uint8)
+np.save(out_img_file[:n_images], img_uint8)
+
+# use uint for eval to fairly compare
+img_fake = torch.from_numpy(img_uint8).float() / 255.
+mu, sigma = calculate_activation_statistics(img_fake)
+out_dict['m'] = mu
+out_dict['sigma'] = sigma
+
+# calculate FID score and save it to a dictionary
+fid_score = calculate_frechet_distance(mu, sigma, fid_dict['m'], fid_dict['s'])
+out_dict['fid'] = fid_score
+print("FID Score (%d images): %.6f" % (n_images, fid_score))

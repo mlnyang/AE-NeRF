@@ -1,0 +1,2 @@
+reconstruction loss
+adversarial loss to rendered image 

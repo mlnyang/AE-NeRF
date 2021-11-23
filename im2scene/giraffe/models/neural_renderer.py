@@ -76,7 +76,6 @@ class NeuralRenderer(nn.Module):
         self.actvn = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
-
         net = self.conv_in(x)
 
         if self.use_rgb_skip:
@@ -94,7 +93,7 @@ class NeuralRenderer(nn.Module):
                     rgb = self.upsample_rgb(rgb)
 
         if not self.use_rgb_skip:
-            rgb = self.conv_rgb(net)
+            rgb = self.conv_rgb(net)    # torch.Size([2, 3, 64, 64])
 
         if self.final_actvn:
             rgb = torch.sigmoid(rgb)

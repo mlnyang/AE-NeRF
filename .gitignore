@@ -9,3 +9,6 @@ out
 *.prof
 .nfs*
 _cache_*
+
+out/
+data/

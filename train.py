@@ -7,10 +7,26 @@ import argparse
 import time
 from im2scene import config
 from im2scene.checkpoints import CheckpointIO
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
 import logging
 logger_py = logging.getLogger(__name__)
 np.random.seed(0)
 torch.manual_seed(0)
+
+
+# 세팅 나중에 잡기!
+# random_seed = 0
+
+# torch.manual_seed(random_seed)
+# torch.cuda.manual_seed(random_seed)
+# # torch.cuda.manual_seed_all(random_seed) # if use multi-GPU
+# torch.backends.cudnn.deterministic = True       # 연산속도 느려짐!
+# torch.backends.cudnn.benchmark = False
+# np.random.seed(random_seed)
+# random.seed(random_seed)
+
+
 
 # Arguments
 parser = argparse.ArgumentParser(
@@ -50,9 +66,18 @@ else:
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
-train_dataset = config.get_dataset(cfg)
+dataset = config.get_dataset(cfg)
+len_dset = len(dataset)
+train_len = len_dset * 0.99
+
+train_dataset, val_dataset = torch.utils.data.random_split(dataset, [int(train_len)+1, int(len_dset-train_len)])
+
 train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=batch_size, num_workers=n_workers, shuffle=True,
+    pin_memory=True, drop_last=True,
+)
+val_loader = torch.utils.data.DataLoader(
+    val_dataset, batch_size=batch_size, num_workers=n_workers, shuffle=False,
     pin_memory=True, drop_last=True,
 )
 
@@ -97,6 +122,7 @@ print('Current best validation metric (%s): %.8f'
       % (model_selection_metric, metric_val_best))
 
 logger = SummaryWriter(os.path.join(out_dir, 'logs'))
+logger_py.info(f'NAME: {cfg["training"]["out_dir"]} \n Major settings: \n 1) LR_G: {cfg["training"]["learning_rate"]} \n 2) LR_D: {cfg["training"]["learning_rate_d"]} \n 3) range_u: {cfg["training"]["range_u"]} \n 4) range_v: {cfg["training"]["range_v"]} \n 5) recon_weight: {cfg["training"]["recon_weight"]}')
 # Shorthands
 print_every = cfg['training']['print_every']
 checkpoint_every = cfg['training']['checkpoint_every']
@@ -139,9 +165,24 @@ while (True):
         # # Visualize output
         if visualize_every > 0 and (it % visualize_every) == 0:
             logger_py.info('Visualizing')
-            image_grid = trainer.visualize(it=it)
+            image_grid, psnr, ssim = trainer.visualize(batch, it=it, mode='train', val_idx=None)
             if image_grid is not None:
                 logger.add_image('images', image_grid, it)
+
+            psnr_batch = 0.0
+            ssim_batch = 0.0
+            # fid_batch = 0.0
+            for val_idx, val_batch in enumerate(val_loader):
+                image_grid, psnr, ssim = trainer.visualize(val_batch, it=it, mode='val', val_idx=val_idx==len(val_loader)-1)
+                if val_idx == len(val_loader)-1:
+                    logger.add_image('images', image_grid, it)
+                psnr_batch += psnr
+                ssim_batch += ssim 
+                # fid_batch += fid
+            total_psnr = psnr_batch / len(val_loader)
+            total_ssim = ssim_batch / len(val_loader)
+            # total_fid = fid_batch / len(val_loader)
+            print(f'Validation Loss : PSNR {total_psnr} | SSIM {total_ssim} ')
 
         # Save checkpoint
         if (checkpoint_every > 0 and (it % checkpoint_every) == 0):
@@ -156,23 +197,23 @@ while (True):
             checkpoint_io.save('model_%d.pt' % it, epoch_it=epoch_it, it=it,
                                loss_val_best=metric_val_best)
 
-        # Run validation
-        if validate_every > 0 and (it % validate_every) == 0 and (it > 0):
-            print("Performing evaluation step.")
-            eval_dict = trainer.evaluate()
-            metric_val = eval_dict[model_selection_metric]
-            logger_py.info('Validation metric (%s): %.4f'
-                           % (model_selection_metric, metric_val))
+        # # Run validation            <- validadtion 확인해보기!    # 일단 pass
+        # if validate_every > 0 and (it % validate_every) == 0 and (it > 0):
+        #     print("Performing evaluation step.")
+        #     eval_dict = trainer.evaluate()
+        #     metric_val = eval_dict[model_selection_metric]
+        #     logger_py.info('Validation metric (%s): %.4f'
+        #                    % (model_selection_metric, metric_val))
 
-            for k, v in eval_dict.items():
-                logger.add_scalar('val/%s' % k, v, it)
+        #     for k, v in eval_dict.items():
+        #         logger.add_scalar('val/%s' % k, v, it)
 
-            if model_selection_sign * (metric_val - metric_val_best) > 0:
-                metric_val_best = metric_val
-                logger_py.info('New best model (loss %.4f)' % metric_val_best)
-                checkpoint_io.backup_model_best('model_best.pt')
-                checkpoint_io.save('model_best.pt', epoch_it=epoch_it, it=it,
-                                   loss_val_best=metric_val_best)
+        #     if model_selection_sign * (metric_val - metric_val_best) > 0:
+        #         metric_val_best = metric_val
+        #         logger_py.info('New best model (loss %.4f)' % metric_val_best)
+        #         checkpoint_io.backup_model_best('model_best.pt')
+        #         checkpoint_io.save('model_best.pt', epoch_it=epoch_it, it=it,
+        #                            loss_val_best=metric_val_best)
 
         # Exit if necessary
         if exit_after > 0 and (time.time() - t0) >= exit_after:
