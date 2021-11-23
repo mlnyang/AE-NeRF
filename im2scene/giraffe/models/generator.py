@@ -104,11 +104,11 @@ class Generator(nn.Module):
             random_u = torch.rand(batch_size)*(self.range_u[1] - self.range_u[0]) + self.range_u[0]
             random_v = torch.rand(batch_size)*(self.range_v[1] - self.range_v[0]) + self.range_v[0]
             rand_camera_matrices = self.get_random_camera(random_u, random_v, batch_size)
-            intrinsic_mat = rand_camera_matrices [0]
+            intrinsic_mat = rand_camera_matrices[0]
             # u, v = uv[:, 0], uv[:, 1]
             # v = v/2
-            camera_matrices = tuple((pose, intrinsic_mat))
-            swap_cam_matrices = tuple((pose.flip(0), intrinsic_mat))
+            camera_matrices = tuple((intrinsic_mat, pose))
+            swap_cam_matrices = tuple((intrinsic_mat, pose.flip(0)))
 
 
         else:

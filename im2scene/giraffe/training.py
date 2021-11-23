@@ -12,6 +12,7 @@ from skimage.metrics import peak_signal_noise_ratio as compare_psnr
 from skimage.metrics import structural_similarity as compare_ssim
 import numpy as np 
 import pdb 
+import math 
 
 logger_py = logging.getLogger(__name__)
 
@@ -230,9 +231,9 @@ class Trainer(BaseTrainer):
         else:
             f = open(out_path, 'a')
 
-        uv = uv.unsqueeze(0) 
-        for i in range(len(uv)):        # len: 3
-            line = list(map(lambda x: round(x, 3), uv[i].flatten().detach().cpu().numpy().tolist()))
+        uvs = torch.stack(uv, dim=0)
+        for i in range(len(uvs)):        # len: 3
+            line = list(map(lambda x: round(x, 3), uvs[i].flatten().detach().cpu().numpy().tolist()))
             out = []
             for idx in range(0, len(line)//2):
                 out.append(tuple((line[2*idx], line[2*idx+1])))
@@ -240,6 +241,20 @@ class Trainer(BaseTrainer):
             f.write(txt_line)
         f.write('\n')
         f.close()
+
+    def to_sphere(self, uv):
+        theta = 360 * uv[:, 0]
+        phi = torch.arccos(1 - 2 * uv[:, 1]) / math.pi * 180
+        
+        return torch.stack([theta, phi], dim=-1) #16, 2
+
+    #'ㅅ'
+    def loc2rad(self, loc):
+        theta = torch.acos(loc[:, 2])
+        phi = torch.acos(loc[:,0]/torch.sin(theta))
+        theta, phi = theta * 180 / torch.pi, phi * 180 / torch.pi
+        return torch.cat([theta, phi], dim=-1)
+
 
 
     def visualize(self, data, it=0, mode=None, val_idx=None):
@@ -261,6 +276,17 @@ class Trainer(BaseTrainer):
             image_fake, image_swap, image_rand, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
             image_fake, image_swap, image_rand = image_fake.detach(), image_swap.detach(), image_rand.detach()
             # edit mira end 
+
+            # edit 'ㅅ'
+            randrad = self.to_sphere(uvs).cuda()
+            rotmat = x_pose[:,:3,:3]
+            origin = torch.Tensor([0,0,1]).repeat(x_pose.shape[0],1).unsqueeze(-1).cuda()
+            
+            camloc = rotmat@origin
+            radian = self.loc2rad(camloc) 
+            #pdb.set_trace()
+            uvs_full = (radian, radian.flip(0), randrad)#gt, swap    3, 16, 2
+
 
         # edit mira start
         if mode == 'val':
@@ -292,8 +318,8 @@ class Trainer(BaseTrainer):
         image_grid = make_grid(torch.cat((x_real, image_fake.clamp_(0., 1.), image_swap.clamp_(0., 1.), image_rand.clamp_(0., 1.)), dim=0), nrow=image_fake.shape[0])
         if mode == 'val':
             save_image(image_grid, os.path.join(self.val_vis_dir, out_file_name))
-            self.record_uvs(uvs, os.path.join(self.val_vis_dir), it)
+            self.record_uvs(uvs_full, os.path.join(self.val_vis_dir), it)
         else:
             save_image(image_grid, os.path.join(self.vis_dir, out_file_name))
-            self.record_uvs(uvs, os.path.join(self.vis_dir), it)
+            self.record_uvs(uvs_full, os.path.join(self.vis_dir), it)
         return image_grid, psnr, ssim
