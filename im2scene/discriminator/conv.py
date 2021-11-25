@@ -11,11 +11,11 @@ class DCDiscriminator(nn.Module):
         n_feat (int): features of final hidden layer
         img_size (int): input image size
     '''
-    def __init__(self, in_dim=3, n_feat=512, img_size=64):
+    def __init__(self, in_dim=3, n_feat=512, img_size=128):
         super(DCDiscriminator, self).__init__()
 
         self.in_dim = in_dim
-        n_layers = int(log2(img_size) - 2)
+        n_layers = int(log2(img_size) - 1)
         self.blocks = nn.ModuleList(
             [nn.Conv2d(
                 in_dim,

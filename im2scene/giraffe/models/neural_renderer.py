@@ -23,7 +23,7 @@ class NeuralRenderer(nn.Module):
 
     def __init__(
             self, n_feat=128, input_dim=128, out_dim=3, final_actvn=True,
-            min_feat=32, img_size=64, use_rgb_skip=True,
+            min_feat=32, img_size=128, use_rgb_skip=True,
             upsample_feat="nn", upsample_rgb="bilinear", use_norm=False,
             **kwargs):
         super().__init__()
@@ -31,7 +31,7 @@ class NeuralRenderer(nn.Module):
         self.input_dim = input_dim
         self.use_rgb_skip = use_rgb_skip
         self.use_norm = use_norm
-        n_blocks = int(log2(img_size) - 4)
+        n_blocks = int(log2(img_size) - 3)
 
         assert(upsample_feat in ("nn", "bilinear"))
         if upsample_feat == "nn":

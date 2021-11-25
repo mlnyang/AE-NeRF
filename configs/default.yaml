@@ -29,7 +29,7 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir: out/uv-1123-v00505-recon30
+  out_dir: out/singleview-recon
   batch_size: 16
   print_every: 10
   checkpoint_every: 500
@@ -47,8 +47,8 @@ training:
   optimizer: RMSprop
   optimizer_kwargs: {}
   n_eval_images: 10000
-  range_u: [0, 1]
-  range_v: [0.05, 0.5]
+  range_u: [0.0, 0.0]
+  range_v: [0.5, 0.5]
   recon_weight:  30.
 test:
   model_file: model_best.pt

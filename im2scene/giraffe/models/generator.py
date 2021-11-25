@@ -91,24 +91,37 @@ class Generator(nn.Module):
                 only_render_background=False,
                 need_uv=False):
         # edit mira start 
-        batch_size = img.shape[0]
+        # 랜덤하게 두개만 뽑자     
+        img1, img2 = img[0].to(self.device), img[1].to(self.device)
+        pose1, pose2 = pose[:, 0], pose[:, 1]
+
+        batch_size = img1.shape[0]
         # uv, shape, appearance = self.resnet(img)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
+        img = torch.cat((img1, img2), dim=0)        
         shape, appearance = self.resnet(img)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
+        # 만약 gradient 저장이 문제라면 
+
+        mid = int(len(shape) / 2)
 
         if latent_codes is None:
-            latent_codes = shape.unsqueeze(1), appearance.unsqueeze(1)       # OK
+            latent_codes1 = shape[:mid].unsqueeze(1), appearance[:mid].unsqueeze(1)       # OK
+            latent_codes2 = shape[mid:].unsqueeze(1), appearance[mid:].unsqueeze(1)       # OK
+
 
         if camera_matrices is None: 
             # camera, world matrices 
             # camera matrices 어떻게 고정하지? 
             random_u = torch.rand(batch_size)*(self.range_u[1] - self.range_u[0]) + self.range_u[0]
             random_v = torch.rand(batch_size)*(self.range_v[1] - self.range_v[0]) + self.range_v[0]
+            # 정해진 batch size만큼 나옴 
             rand_camera_matrices = self.get_random_camera(random_u, random_v, batch_size)
             intrinsic_mat = rand_camera_matrices[0]
             # u, v = uv[:, 0], uv[:, 1]
             # v = v/2
-            camera_matrices = tuple((intrinsic_mat, pose))
-            swap_cam_matrices = tuple((intrinsic_mat, pose.flip(0)))
+
+            camera_matrices = tuple((intrinsic_mat, pose1))    # 앞부분 mat 
+            new_cam_matrices = tuple((intrinsic_mat, pose2))   # 뒷부분 mat 
+            swap_camera_matrices = tuple((intrinsic_mat, pose1.flip(0)))    # 앞부분 mat 
 
 
         else:
@@ -124,39 +137,49 @@ class Generator(nn.Module):
 
         if return_alpha_map:
             rgb_v, alpha_map = self.volume_render_image(
-                latent_codes, camea_matrices, 
+                latent_codes1, camera_matrices, 
                 mode=mode, it=it, return_alpha_map=True,
                 not_render_background=not_render_background)
             return alpha_map
         else:
             rgb_v = self.volume_render_image(
-                latent_codes, camera_matrices, transformations, 
+                latent_codes1, camera_matrices, transformations, 
+                mode=mode, it=it, not_render_background=not_render_background,
+                only_render_background=only_render_background)
+            rgb_v2 = self.volume_render_image(
+                latent_codes2, new_cam_matrices, transformations, 
                 mode=mode, it=it, not_render_background=not_render_background,
                 only_render_background=only_render_background)
             swap_rgb_v = self.volume_render_image(
-                latent_codes, swap_cam_matrices, transformations, 
+                latent_codes1, swap_camera_matrices, transformations, 
                 mode=mode, it=it, not_render_background=not_render_background,
                 only_render_background=only_render_background)
-            rand_rgb_v = self.volume_render_image(
-                latent_codes, rand_camera_matrices, transformations, 
-                mode=mode, it=it, not_render_background=not_render_background,
-                only_render_background=only_render_background)
+            # rand_rgb_v = self.volume_render_image(
+            #     latent_codes1, rand_camera_matrices, transformations, 
+            #     mode=mode, it=it, not_render_background=not_render_background,
+            #     only_render_background=only_render_background)
 
 
             if self.neural_renderer is not None:
                 rgb = self.neural_renderer(rgb_v)
+                rgb2 = self.neural_renderer(rgb_v2)
                 swap_rgb = self.neural_renderer(swap_rgb_v)
-                rand_rgb = self.neural_renderer(rand_rgb_v)
+                # rand_rgb = self.neural_renderer(rand_rgb_v)
             else:
                 rgb = rgb_v
-                swap_rgb = swap_rgb
-                rand_rgb = rand_rgb
+                rgb2 = rgb_v2
+                swap_rgb = swap_rgb_v
+                # rand_rgb = rand_rgb_v
 
             if need_uv==True:
-                return rgb, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+                # return rgb, rgb2, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+                return rgb, rgb2, swap_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+
                 # return rgb, swap_rgb, rand_rgb, (uv, uv.flip(0), torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1))
+                # return rgb, swap_rgb, rand_rgb, torch.cat((rand_camera_matrices[1], pose, pose.flip(0)), dim=-1)
+
             else:
-                return rgb, swap_rgb, rand_rgb
+                return rgb, rgb2, swap_rgb
 
     def get_n_boxes(self):
         if self.bounding_box_generator is not None:

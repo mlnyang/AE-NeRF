@@ -14,6 +14,8 @@ import random
 # fix for broken images
 from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
+from random import randrange
+import imageio
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +151,7 @@ class ImagesDataset(data.Dataset):
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
         self.transform = transforms.Compose(self.transform)
 
-
+        self.image_to_tensor = self.get_image_to_tensor_balanced()
         import time
         t0 = time.time()
         print('Start loading file addresses ...')
@@ -173,37 +175,66 @@ class ImagesDataset(data.Dataset):
         self._coord_trans = torch.diag(
             torch.tensor([1, -1, -1, 1], dtype=torch.float32)
         )
+        self.intrins = sorted(
+            glob.glob(os.path.join(base_path, "*", "intrinsics.txt"))
+        )
 
-    def __getitem__(self, idx):
-        try:
-            buf = self.images[idx]
-            if self.data_type == 'npy':
-                img = np.load(buf)[0].transpose(1, 2, 0)
-                img = Image.fromarray(img).convert("RGB")
-            else:
-                img = Image.open(buf).convert('RGB')
 
-            if self.transform is not None:
-                img = self.transform(img)
+    def get_image_to_tensor_balanced(self, image_size=0):
+        ops = []
+        if image_size > 0:
+            ops.append(transforms.Resize(image_size))
+        ops.extend(
+            [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),]
+        )
+        return transforms.Compose(ops)
 
-            pose_path = self.poses[idx]
+    def __getitem__(self, index):     # 아예 pixelnerf랑 동일하게 이미지 가져올 것 
+        intrin_path = self.intrins[index]
+        dir_path = os.path.dirname(intrin_path)
+        rgb_paths = sorted(glob.glob(os.path.join(dir_path, "rgb", "*")))
+        pose_paths = sorted(glob.glob(os.path.join(dir_path, "pose", "*")))
+
+        all_imgs = []
+        all_poses = []
+
+        total_len = len(rgb_paths)
+
+        # random integer 2개 뽑기 
+        idx_list = []
+        img_idx = randrange(total_len)
+        idx_list.append(img_idx)
+        img_idx2 = total_len - (img_idx+1)
+        if img_idx2 in idx_list:
+            img_idx2 += 1
+        idx_list.append(img_idx2)
+
+        for idx in idx_list:
+            img = imageio.imread(rgb_paths[idx])[..., :3]
+            img_tensor = self.image_to_tensor(img)
+
             pose = torch.from_numpy(
-                np.loadtxt(pose_path, dtype=np.float32).reshape(4, 4)
+                np.loadtxt(pose_paths[idx], dtype=np.float32).reshape(4, 4)
             )
             pose = pose @ self._coord_trans
 
-            data = {
-                'image': img,
-                'pose': pose
-            }
-            return data
-        except Exception as e:
-            print(e)
-            print("Warning: Error occurred when loading file %s" % buf)
-            return self.__getitem__(np.random.randint(self.length))
+            all_imgs.append(img_tensor)
+            all_poses.append(pose)
+
+        # 딱 2개만 쌓음 
+
+        all_imgs = all_imgs
+        all_poses = torch.stack(all_poses)
+
+
+        data = {
+            'image': all_imgs,
+            'pose': all_poses
+        }
+        return data
 
     def __len__(self):
-        return self.length
+        return len(self.intrins)
 
 
 

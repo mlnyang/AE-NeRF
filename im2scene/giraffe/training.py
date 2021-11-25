@@ -82,17 +82,17 @@ class Trainer(BaseTrainer):
             data (dict): data dictionary
             it (int): training iteration
         '''
-        loss_gen, loss_recon, loss_g_swap = self.train_step_generator(data, it)
-        loss_d, reg_d, real_d, swap_d = self.train_step_discriminator(data, it)
+        loss_gen, loss_recon = self.train_step_generator(data, it)
+        # loss_d, reg_d, real_d, swap_d = self.train_step_discriminator(data, it)
 
         return {
-            'generator_total': loss_gen,
-            'generator_swap': loss_g_swap,
+            'gen_total': loss_gen,
             'recon': loss_recon,
-            'discriminator': loss_d,
-            'regularizer': reg_d,
-            'real_d': real_d,
-            'swap_d': swap_d,
+            # 'swap_g': swap_g,
+            # 'disc_total': loss_d,
+            # 'regularizer': reg_d,
+            # 'real_d': real_d,
+            # 'swap_d': swap_d,
         }
 
     def eval_step(self):
@@ -135,28 +135,34 @@ class Trainer(BaseTrainer):
 
         self.optimizer.zero_grad()
 
-        x_real = data.get('image').to(self.device)
+        x_real = data.get('image')
         pose_real = data.get('pose').to(self.device)
 
         if self.multi_gpu:
             latents = generator.module.get_vis_dict(x_real.shape[0])
-            x_fake, x_swap, x_rand = generator(x_real, pose_real, **latents)        # pred, swap, rand
+            x_fake, x_fake2, x_swap = generator(x_real, pose_real, **latents)        # pred, swap, rand
         else:
-            x_fake, x_swap, x_rand = generator(x_real, pose_real)
+            x_fake, x_fake2, x_swap = generator(x_real, pose_real)
 
-        d_fake = discriminator(x_fake)
-        d_swap = discriminator(x_swap)
+        # d_fake = discriminator(x_fake)
+        # d_swap = discriminator(x_swap)
         # gloss = compute_bce(d_fake, 1)
-        gloss_swap = compute_bce(d_swap, 1)
-        loss_recon = self.recon_loss(x_fake, x_real) * self.recon_weight
-        gen_loss = gloss_swap + loss_recon 
+        # gloss_swap = compute_bce(d_swap, 1)
+
+        loss_recon = self.recon_loss(x_fake, x_real[0].to(self.device)) * self.recon_weight
+        # loss_new = self.recon_loss(x_fake2, x_real[1].to(self.device)) * self.recon_weight
+
+        # gen_loss = loss_recon + gloss_swap
+        # gen_loss = (loss_new + loss_recon)/2 
+        gen_loss = loss_recon
+
         gen_loss.backward()
         self.optimizer.step()
 
         if self.generator_test is not None:
             update_average(self.generator_test, generator, beta=0.999)
 
-        return gen_loss.item(), loss_recon.item(), gloss_swap.item()
+        return gen_loss.item(), loss_recon.item()
 
     def train_step_discriminator(self, data, it=None, z=None):
         generator = self.generator
@@ -168,10 +174,13 @@ class Trainer(BaseTrainer):
 
         self.optimizer_d.zero_grad()
 
-        x_real = data.get('image').to(self.device)
-        pose_real = data.get('pose').to(self.device)
+        x_real_total = data.get('image')
+        pose_real_total = data.get('pose').to(self.device)
 
         loss_d_full = 0.
+
+        x_real = x_real_total[0].to(self.device)
+        pose_real = pose_real_total[:, 0]
 
         x_real.requires_grad_()
         d_real = discriminator(x_real)
@@ -185,9 +194,9 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             if self.multi_gpu:
                 latents = generator.module.get_vis_dict(batch_size=x_real.shape[0])
-                x_swap = generator(x_real, pose_real, **latents)[1]
+                x_swap = generator(x_real_total, pose_real_total, **latents)[2]
             else:
-                x_swap = generator(x_real, pose_real)[1]
+                x_swap = generator(x_real_total, pose_real_total)[2]
 
         x_swap.requires_grad_()
         d_swap = discriminator(x_swap)
@@ -225,7 +234,7 @@ class Trainer(BaseTrainer):
 
     def record_uvs(self, uv, path, it):
         out_path = os.path.join(path, 'uv.txt')
-        name_dict = {0: 'rand', 1: 'pred', 2:'swap'}
+        name_dict = {0: 'GT', 1: 'GT2', 2:'swap_GT'}
         if not os.path.exists(out_path):
             f = open(out_path, 'w')
         else:
@@ -242,7 +251,7 @@ class Trainer(BaseTrainer):
         f.write('\n')
         f.close()
 
-    def to_sphere(self, uv):
+    def uv2rad(self, uv):
         theta = 360 * uv[:, 0]
         phi = torch.arccos(1 - 2 * uv[:, 1]) / math.pi * 180
         
@@ -271,41 +280,59 @@ class Trainer(BaseTrainer):
         gen.eval()
         with torch.no_grad():
             # edit mira start 
-            x_real = data.get('image').cuda()
-            x_pose = data.get('pose').cuda()
-            image_fake, image_swap, image_rand, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
-            image_fake, image_swap, image_rand = image_fake.detach(), image_swap.detach(), image_rand.detach()
+            x_real = data.get('image')
+            x_pose = data.get('pose').to(self.device)
+            image_fake, image_fake2, image_swap, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
+            image_fake, image_fake2, image_swap = image_fake.detach(), image_fake2.detach(), image_swap.detach()
             # edit mira end 
 
+
+            # 여기 안을 잘 조정하면 -> swapped view에서도 비슷한 맥락으로 나올 듯 
             # edit 'ㅅ'
-            randrad = self.to_sphere(uvs).cuda()
-            rotmat = x_pose[:,:3,:3]
-            origin = torch.Tensor([0,0,1]).repeat(x_pose.shape[0],1).unsqueeze(-1).cuda()
-            
-            camloc = rotmat@origin
-            radian = self.loc2rad(camloc) 
+            # randrad = self.uv2rad(uvs).cuda()        # uv를 radian으로 표현 
+            rotmat1 = x_pose[:, 0][:,:3,:3]        # x_pose : real pose that includes R,t
+            rotmat2 = x_pose[:, 1][:,:3,:3]        # x_pose : real pose that includes R,t
+
+            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose[:, 0])),1).unsqueeze(-1)
+
+            camloc1 = rotmat1@origin
+            radian1 = self.loc2rad(camloc1) 
+
+            camloc2 = rotmat2@origin
+            radian2 = self.loc2rad(camloc2) 
+
             #pdb.set_trace()
-            uvs_full = (radian, radian.flip(0), randrad)#gt, swap    3, 16, 2
+            uvs_full = (radian1, radian2, radian1.flip(0))#gt, swap    3, 16, 2
 
 
         # edit mira start
         if mode == 'val':
             # metric values 
             psnr, ssim = 0, 0
-            x_real_np = np.array(x_real.detach().cpu())
-            image_fake_np = np.array(image_fake.detach().cpu())
+            x_real_np1 = np.array(x_real[0].detach().cpu())
+            image_fake_np1 = np.array(image_fake.detach().cpu())
 
-            for idx in range(len(x_real)):
-                x_real_idx = np.transpose(x_real_np[idx], (1, 2, 0))
-                image_fake_idx = np.transpose(image_fake_np[idx], (1, 2, 0))
-                psnr += compare_psnr(x_real_idx, image_fake_idx, data_range=1)
-                ssim += compare_ssim(x_real_idx, image_fake_idx, multichannel=True, data_range=1)
+            x_real_np2 = np.array(x_real[1].detach().cpu())
+            image_fake_np2 = np.array(image_fake2.detach().cpu())
 
-            psnr, ssim = psnr/len(x_real), ssim/len(x_real)
 
-            img_uint8 = (image_rand * 255).cpu().numpy().astype(np.uint8)
-            img_rand_fid = torch.from_numpy(img_uint8).float() / 255.
-            mu, sigma = calculate_activation_statistics(img_rand_fid)
+            for idx in range(len(x_real[0])):
+                x_real_idx1 = np.transpose(x_real_np1[idx], (1, 2, 0))
+                image_fake_idx1 = np.transpose(image_fake_np1[idx], (1, 2, 0))
+                psnr += compare_psnr(x_real_idx1, image_fake_idx1, data_range=1)
+                ssim += compare_ssim(x_real_idx1, image_fake_idx1, multichannel=True, data_range=1)
+
+                x_real_idx2 = np.transpose(x_real_np2[idx], (1, 2, 0))
+                image_fake_idx2 = np.transpose(image_fake_np2[idx], (1, 2, 0))
+                psnr += compare_psnr(x_real_idx2, image_fake_idx2, data_range=1)
+                ssim += compare_ssim(x_real_idx2, image_fake_idx2, multichannel=True, data_range=1)
+
+
+            psnr, ssim = psnr/len(x_real[0])/2, ssim/len(x_real[0])/2
+
+            # img_uint8 = (image_rand * 255).cpu().numpy().astype(np.uint8)
+            # img_rand_fid = torch.from_numpy(img_uint8).float() / 255.
+            # mu, sigma = calculate_activation_statistics(img_rand_fid)
             
             if val_idx == True:
                 out_file_name = f'visualization_{it}_evaluation_P{round(psnr, 2)}_S{round(ssim, 2)}.png'
@@ -315,7 +342,7 @@ class Trainer(BaseTrainer):
             out_file_name = 'visualization_%010d.png' % it
             psnr, ssim, fid = None, None, None
         # edit mira end 
-        image_grid = make_grid(torch.cat((x_real, image_fake.clamp_(0., 1.), image_swap.clamp_(0., 1.), image_rand.clamp_(0., 1.)), dim=0), nrow=image_fake.shape[0])
+        image_grid = make_grid(torch.cat((x_real[0].to(self.device), x_real[1].to(self.device), image_fake.clamp_(0., 1.), image_fake2.clamp_(0., 1.), image_swap.clamp_(0., 1.)), dim=0), nrow=image_fake.shape[0])
         if mode == 'val':
             save_image(image_grid, os.path.join(self.val_vis_dir, out_file_name))
             self.record_uvs(uvs_full, os.path.join(self.val_vis_dir), it)
