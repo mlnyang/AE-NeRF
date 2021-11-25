@@ -146,10 +146,10 @@ class Generator(nn.Module):
                 latent_codes1, camera_matrices, transformations, 
                 mode=mode, it=it, not_render_background=not_render_background,
                 only_render_background=only_render_background)
-            rgb_v2 = self.volume_render_image(
-                latent_codes2, new_cam_matrices, transformations, 
-                mode=mode, it=it, not_render_background=not_render_background,
-                only_render_background=only_render_background)
+            # rgb_v2 = self.volume_render_image(
+            #     latent_codes2, new_cam_matrices, transformations, 
+            #     mode=mode, it=it, not_render_background=not_render_background,
+            #     only_render_background=only_render_background)
             swap_rgb_v = self.volume_render_image(
                 latent_codes1, swap_camera_matrices, transformations, 
                 mode=mode, it=it, not_render_background=not_render_background,
@@ -162,24 +162,26 @@ class Generator(nn.Module):
 
             if self.neural_renderer is not None:
                 rgb = self.neural_renderer(rgb_v)
-                rgb2 = self.neural_renderer(rgb_v2)
+                # rgb2 = self.neural_renderer(rgb_v2)
                 swap_rgb = self.neural_renderer(swap_rgb_v)
                 # rand_rgb = self.neural_renderer(rand_rgb_v)
             else:
                 rgb = rgb_v
-                rgb2 = rgb_v2
+                # rgb2 = rgb_v2
                 swap_rgb = swap_rgb_v
                 # rand_rgb = rand_rgb_v
 
             if need_uv==True:
                 # return rgb, rgb2, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
-                return rgb, rgb2, swap_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+                # return rgb, rgb2, swap_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+                return rgb, swap_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+
 
                 # return rgb, swap_rgb, rand_rgb, (uv, uv.flip(0), torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1))
                 # return rgb, swap_rgb, rand_rgb, torch.cat((rand_camera_matrices[1], pose, pose.flip(0)), dim=-1)
 
             else:
-                return rgb, rgb2, swap_rgb
+                return rgb, swap_rgb
 
     def get_n_boxes(self):
         if self.bounding_box_generator is not None:
