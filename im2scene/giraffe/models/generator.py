@@ -92,8 +92,8 @@ class Generator(nn.Module):
                 need_uv=False):
         # edit mira start 
         # 랜덤하게 두개만 뽑자     
-        img1 = img[0].to(self.device)
-        pose1 = pose[:, 0]
+        img1 = img.to(self.device)
+        pose1 = pose
 
         batch_size = img1.shape[0]
         # uv, shape, appearance = self.resnet(img)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
@@ -113,7 +113,9 @@ class Generator(nn.Module):
             random_u = torch.rand(batch_size)*(self.range_u[1] - self.range_u[0]) + self.range_u[0]
             random_v = torch.rand(batch_size)*(self.range_v[1] - self.range_v[0]) + self.range_v[0]
             # 정해진 batch size만큼 나옴 
-            rand_camera_matrices = self.get_random_camera(random_u, random_v, batch_size)
+
+            rand_camera_matrices = self.get_random_camera(random_u, random_v, batch_size)   # 사잇값이 가지런하게 나옴 
+
             intrinsic_mat = rand_camera_matrices[0]
             # u, v = uv[:, 0], uv[:, 1]
             # v = v/2
@@ -153,11 +155,6 @@ class Generator(nn.Module):
                 latent_codes1, swap_camera_matrices, transformations, 
                 mode=mode, it=it, not_render_background=not_render_background,
                 only_render_background=only_render_background)
-            # rand_rgb_v = self.volume_render_image(
-            #     latent_codes1, rand_camera_matrices, transformations, 
-            #     mode=mode, it=it, not_render_background=not_render_background,
-            #     only_render_background=only_render_background)
-
 
             if self.neural_renderer is not None:
                 rgb = self.neural_renderer(rgb_v)
@@ -169,6 +166,14 @@ class Generator(nn.Module):
                 # rgb2 = rgb_v2
                 swap_rgb = swap_rgb_v
                 # rand_rgb = rand_rgb_v
+
+            if mode == 'val':
+                rand_rgb_v = self.volume_render_image(
+                    latent_codes1, rand_camera_matrices, transformations, 
+                    mode=mode, it=it, not_render_background=not_render_background,
+                    only_render_background=only_render_background)
+                rand_rgb = self.neural_renderer(rand_rgb_v)
+                return rgb, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
 
             if need_uv==True:
                 # return rgb, rgb2, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)

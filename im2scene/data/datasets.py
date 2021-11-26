@@ -121,31 +121,12 @@ class ImagesDataset(data.Dataset):
                  random_crop=False, use_tanh_range=False):
 
         self.size = size
-        assert(not(celebA_center_crop and random_crop))
-        if random_crop:
-            self.transform = [
-                transforms.Resize(size),
-                transforms.RandomCrop(size),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-            ]
-        elif celebA_center_crop:
-            if size <= 128:  # celebA
-                crop_size = 108
-            else:  # celebAHQ
-                crop_size = 650
-            self.transform = [
-                transforms.CenterCrop(crop_size),
-                transforms.Resize((size, size)),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor()
-            ]
-        else:
-            self.transform = [
-                transforms.Resize((size, size)),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-            ]
+        assert(not(celebA_center_crop and random_crop)) # 둘다 False여야 함 
+        self.transform = [
+            transforms.Resize((size, size)),
+            transforms.ToTensor(),
+        ]
+
         if use_tanh_range:
             self.transform += [
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
@@ -154,23 +135,11 @@ class ImagesDataset(data.Dataset):
         self.image_to_tensor = self.get_image_to_tensor_balanced()
         import time
         t0 = time.time()
-        print('Start loading file addresses ...')
-        images = glob.glob(dataset_folder)      # <- 이미지가 담긴 list여야 함 
-        base_path = '/root/dataset2/ShapeNet/cars_train'        # <- 바꾸기 
-
-        images = sorted(glob.glob(os.path.join(base_path, "*", "rgb", "*.png")))        # 여기서 시간 많이 걸림. sort를 안해도.. 
-        poses = sorted(glob.glob(os.path.join(base_path, "*", "pose", "*.txt")))        # 여기서 시간 많이 걸림. sort를 안해도.. 
-        self.data_type = os.path.basename(images[0]).split('.')[-1]
-        assert(self.data_type in ["jpg", "png", "npy"])
-
-        random.shuffle(images)
-        t = time.time() - t0
+        print('Start loading file addresses ...')   # 총 12만장 
+        base_path = dataset_folder        # <- 바꾸기 
+        
+        t = time.time() - t0    
         print('done! time:', t)
-        print("Number of images found: %d" % len(images))
-
-        self.images = images
-        self.poses = poses
-        self.length = len(images)
 
         self._coord_trans = torch.diag(
             torch.tensor([1, -1, -1, 1], dtype=torch.float32)
@@ -178,7 +147,6 @@ class ImagesDataset(data.Dataset):
         self.intrins = sorted(
             glob.glob(os.path.join(base_path, "*", "intrinsics.txt"))
         )
-
 
     def get_image_to_tensor_balanced(self, image_size=0):
         ops = []
@@ -195,41 +163,20 @@ class ImagesDataset(data.Dataset):
         rgb_paths = sorted(glob.glob(os.path.join(dir_path, "rgb", "*")))
         pose_paths = sorted(glob.glob(os.path.join(dir_path, "pose", "*")))
 
-        all_imgs = []
-        all_poses = []
-
         total_len = len(rgb_paths)
-
-        # random integer 2개 뽑기 
-        idx_list = []
         img_idx = randrange(total_len)
-        idx_list.append(img_idx)
-        # img_idx2 = total_len - (img_idx+1)
-        # if img_idx2 in idx_list:
-        #     img_idx2 += 1
-        # idx_list.append(img_idx2)
 
-        for idx in idx_list:
-            img = imageio.imread(rgb_paths[idx])[..., :3]
-            img_tensor = self.image_to_tensor(img)
+        img = Image.open(rgb_paths[img_idx]).convert('RGB')
+        img_tensor = self.transform(img)
 
-            pose = torch.from_numpy(
-                np.loadtxt(pose_paths[idx], dtype=np.float32).reshape(4, 4)
-            )
-            pose = pose @ self._coord_trans
-
-            all_imgs.append(img_tensor)
-            all_poses.append(pose)
-
-        # 딱 2개만 쌓음 
-
-        all_imgs = all_imgs
-        all_poses = torch.stack(all_poses)
-
+        pose = torch.from_numpy(
+            np.loadtxt(pose_paths[img_idx], dtype=np.float32).reshape(4, 4)
+        )
+        pose = pose @ self._coord_trans
 
         data = {
-            'image': all_imgs,
-            'pose': all_poses
+            'image': img_tensor,
+            'pose': pose
         }
         return data
 

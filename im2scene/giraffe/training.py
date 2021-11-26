@@ -82,17 +82,17 @@ class Trainer(BaseTrainer):
             data (dict): data dictionary
             it (int): training iteration
         '''
-        loss_gen, loss_recon, swap_g = self.train_step_generator(data, it)
-        loss_d, reg_d, real_d, swap_d = self.train_step_discriminator(data, it)
+        loss_gen, loss_recon = self.train_step_generator(data, it)
+        # loss_d, reg_d, real_d, swap_d = self.train_step_discriminator(data, it)
 
         return {
             'gen_total': loss_gen,
             'recon': loss_recon,
-            'swap_g': swap_g,
-            'disc_total': loss_d,
-            'regularizer': reg_d,
-            'real_d': real_d,
-            'swap_d': swap_d,
+            # 'swap_g': swap_g,
+            # 'disc_total': loss_d,
+            # 'regularizer': reg_d,
+            # 'real_d': real_d,
+            # 'swap_d': swap_d,
         }
 
     def eval_step(self):
@@ -135,7 +135,7 @@ class Trainer(BaseTrainer):
 
         self.optimizer.zero_grad()
 
-        x_real = data.get('image')
+        x_real = data.get('image').to(self.device)
         pose_real = data.get('pose').to(self.device)
 
         if self.multi_gpu:
@@ -149,16 +149,16 @@ class Trainer(BaseTrainer):
 
 
         # d_fake = discriminator(x_fake)
-        d_swap = discriminator(x_swap)
+        # d_swap = discriminator(x_swap)
         # gloss = compute_bce(d_fake, 1)
-        gloss_swap = compute_bce(d_swap, 1)
+        # gloss_swap = compute_bce(d_swap, 1)
 
-        loss_recon = self.recon_loss(x_fake, x_real[0].to(self.device)) * self.recon_weight
+        loss_recon = self.recon_loss(x_fake, x_real) * self.recon_weight
         # loss_new = self.recon_loss(x_fake2, x_real[1].to(self.device)) * self.recon_weight
 
-        gen_loss = loss_recon + gloss_swap
+        # gen_loss = loss_recon + gloss_swap
         # gen_loss = (loss_new + loss_recon)/2 
-        # gen_loss = loss_recon
+        gen_loss = loss_recon
 
         gen_loss.backward()
         self.optimizer.step()
@@ -166,7 +166,9 @@ class Trainer(BaseTrainer):
         if self.generator_test is not None:
             update_average(self.generator_test, generator, beta=0.999)
 
-        return gen_loss.item(), loss_recon.item(), gloss_swap.item()
+        # return gen_loss.item(), loss_recon.item(), gloss_swap.item()
+        return gen_loss.item(), loss_recon.item()
+
 
     def train_step_discriminator(self, data, it=None, z=None):
         generator = self.generator
@@ -238,7 +240,7 @@ class Trainer(BaseTrainer):
 
     def record_uvs(self, uv, path, it):
         out_path = os.path.join(path, 'uv.txt')
-        name_dict = {0: 'GT', 1: 'GT2', 2:'swap_GT'}
+        name_dict = {0: 'GT', 1: 'swap_GT', 2:'rand'}
         if not os.path.exists(out_path):
             f = open(out_path, 'w')
         else:
@@ -284,23 +286,23 @@ class Trainer(BaseTrainer):
         gen.eval()
         with torch.no_grad():
             # edit mira start 
-            x_real = data.get('image')
+            x_real = data.get('image').to(self.device)
             x_pose = data.get('pose').to(self.device)
             # image_fake, image_fake2, image_swap, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
             # image_fake, image_fake2, image_swap = image_fake.detach(), image_fake2.detach(), image_swap.detach()
-            image_fake, image_swap, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
-            image_fake, image_swap = image_fake.detach(), image_swap.detach()
+            image_fake, image_swap, image_rand, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
+            image_fake, image_swap, image_rand = image_fake.detach(), image_swap.detach(), image_rand.detach()
 
             # edit mira end 
 
 
             # 여기 안을 잘 조정하면 -> swapped view에서도 비슷한 맥락으로 나올 듯 
             # edit 'ㅅ'
-            # randrad = self.uv2rad(uvs).cuda()        # uv를 radian으로 표현 
-            rotmat1 = x_pose[:, 0][:,:3,:3]        # x_pose : real pose that includes R,t
+            randrad = self.uv2rad(uvs).cuda()        # uv를 radian으로 표현 
+            rotmat1 = x_pose[:,:3,:3]        # x_pose : real pose that includes R,t
             # rotmat2 = x_pose[:, 1][:,:3,:3]        # x_pose : real pose that includes R,t
 
-            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose[:, 0])),1).unsqueeze(-1)
+            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose)),1).unsqueeze(-1)
 
             camloc1 = rotmat1@origin
             radian1 = self.loc2rad(camloc1) 
@@ -309,21 +311,21 @@ class Trainer(BaseTrainer):
             # radian2 = self.loc2rad(camloc2) 
 
             #pdb.set_trace()
-            uvs_full = (radian1, radian1.flip(0))#gt, swap    3, 16, 2
+            uvs_full = (radian1, radian1.flip(0), randrad)#gt, swap    3, 16, 2
 
 
         # edit mira start
         if mode == 'val':
             # metric values 
             psnr, ssim = 0, 0
-            x_real_np1 = np.array(x_real[0].detach().cpu())
+            x_real_np1 = np.array(x_real.detach().cpu())
             image_fake_np1 = np.array(image_fake.detach().cpu())
 
             # x_real_np2 = np.array(x_real[1].detach().cpu())
             # image_fake_np2 = np.array(image_fake2.detach().cpu())
 
 
-            for idx in range(len(x_real[0])):
+            for idx in range(len(x_real)):
                 x_real_idx1 = np.transpose(x_real_np1[idx], (1, 2, 0))
                 image_fake_idx1 = np.transpose(image_fake_np1[idx], (1, 2, 0))
                 psnr += compare_psnr(x_real_idx1, image_fake_idx1, data_range=1)
@@ -336,7 +338,7 @@ class Trainer(BaseTrainer):
 
 
             # psnr, ssim = psnr/len(x_real[0])/2, ssim/len(x_real[0])/2
-            psnr, ssim = psnr/len(x_real[0]), ssim/len(x_real[0])
+            psnr, ssim = psnr/len(x_real), ssim/len(x_real)
 
 
             # img_uint8 = (image_rand * 255).cpu().numpy().astype(np.uint8)
@@ -352,7 +354,7 @@ class Trainer(BaseTrainer):
             psnr, ssim, fid = None, None, None
         # edit mira end 
         # image_grid = make_grid(torch.cat((x_real[0].to(self.device), x_real[1].to(self.device), image_fake.clamp_(0., 1.), image_fake2.clamp_(0., 1.), image_swap.clamp_(0., 1.)), dim=0), nrow=image_fake.shape[0])
-        image_grid = make_grid(torch.cat((x_real[0].to(self.device), image_fake.clamp_(0., 1.), image_swap.clamp_(0., 1.)), dim=0), nrow=image_fake.shape[0])
+        image_grid = make_grid(torch.cat((x_real.to(self.device), image_fake.clamp_(0., 1.), image_swap.clamp_(0., 1.), image_rand.clamp_(0., 1.)), dim=0), nrow=image_fake.shape[0])
 
         if mode == 'val':
             save_image(image_grid, os.path.join(self.val_vis_dir, out_file_name))

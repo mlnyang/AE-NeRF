@@ -1,8 +1,7 @@
 method: giraffe
 data:
   dataset_name: images
-  path: data/images/*.png
-  pose_path: data/carla_poses
+  path: /root/dataset2/ShapeNet/cars_train
   classes: []
   img_size: 64
   fid_file: data/fid_files/carla_128.npz
@@ -29,7 +28,7 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir: out/singleview-gan-real-v2
+  out_dir: out/delete-rescale
   batch_size: 16
   print_every: 10
   checkpoint_every: 500
@@ -47,8 +46,8 @@ training:
   optimizer: RMSprop
   optimizer_kwargs: {}
   n_eval_images: 10000
-  range_u: [0.0, 0.0]
-  range_v: [0.5, 0.5]
+  range_u: [0.0, 1.0]
+  range_v: [0.0, 1.0]
   recon_weight:  30.
 test:
   model_file: model_best.pt
