@@ -29,15 +29,15 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir: out/singleview-gan-total
+  out_dir: out/singleview-gan-real-v2
   batch_size: 16
   print_every: 10
   checkpoint_every: 500
   visualize_every: 500
   validate_every: 10000
   backup_every: 1000000
-  learning_rate: 0.00025   # 2e-5
-  learning_rate_d: 0.000001  # 1e-6
+  learning_rate: 0.00002   # 2e-5
+  learning_rate_d: 0.0000001  # 1e-7
   model_selection_metric: fid_score
   model_selection_mode: minimize
   n_workers: 8

@@ -92,21 +92,20 @@ class Generator(nn.Module):
                 need_uv=False):
         # edit mira start 
         # 랜덤하게 두개만 뽑자     
-        img1, img2 = img[0].to(self.device), img[1].to(self.device)
-        pose1, pose2 = pose[:, 0], pose[:, 1]
+        img1 = img[0].to(self.device)
+        pose1 = pose[:, 0]
 
         batch_size = img1.shape[0]
         # uv, shape, appearance = self.resnet(img)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
-        img = torch.cat((img1, img2), dim=0)        
-        shape, appearance = self.resnet(img)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
+        shape, appearance = self.resnet(img1)    # img 넣어주기 (Discriminator에서 input으로 받는거 그대로)
         # 만약 gradient 저장이 문제라면 
 
-        mid = int(len(shape) / 2)
+        # mid = int(len(shape) / 2)
 
-        if latent_codes is None:
-            latent_codes1 = shape[:mid].unsqueeze(1), appearance[:mid].unsqueeze(1)       # OK
-            latent_codes2 = shape[mid:].unsqueeze(1), appearance[mid:].unsqueeze(1)       # OK
-
+        # if latent_codes is None:
+        #     latent_codes1 = shape[:mid].unsqueeze(1), appearance[:mid].unsqueeze(1)       # OK
+        #     latent_codes2 = shape[mid:].unsqueeze(1), appearance[mid:].unsqueeze(1)       # OK
+        latent_codes1 = shape.unsqueeze(1), appearance.unsqueeze(1)
 
         if camera_matrices is None: 
             # camera, world matrices 
@@ -120,7 +119,7 @@ class Generator(nn.Module):
             # v = v/2
 
             camera_matrices = tuple((intrinsic_mat, pose1))    # 앞부분 mat 
-            new_cam_matrices = tuple((intrinsic_mat, pose2))   # 뒷부분 mat 
+            # new_cam_matrices = tuple((intrinsic_mat, pose2))   # 뒷부분 mat 
             swap_camera_matrices = tuple((intrinsic_mat, pose1.flip(0)))    # 앞부분 mat 
 
 

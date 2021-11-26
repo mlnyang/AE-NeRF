@@ -298,18 +298,18 @@ class Trainer(BaseTrainer):
             # edit 'ㅅ'
             # randrad = self.uv2rad(uvs).cuda()        # uv를 radian으로 표현 
             rotmat1 = x_pose[:, 0][:,:3,:3]        # x_pose : real pose that includes R,t
-            rotmat2 = x_pose[:, 1][:,:3,:3]        # x_pose : real pose that includes R,t
+            # rotmat2 = x_pose[:, 1][:,:3,:3]        # x_pose : real pose that includes R,t
 
             origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose[:, 0])),1).unsqueeze(-1)
 
             camloc1 = rotmat1@origin
             radian1 = self.loc2rad(camloc1) 
 
-            camloc2 = rotmat2@origin
-            radian2 = self.loc2rad(camloc2) 
+            # camloc2 = rotmat2@origin
+            # radian2 = self.loc2rad(camloc2) 
 
             #pdb.set_trace()
-            uvs_full = (radian1, radian2, radian1.flip(0))#gt, swap    3, 16, 2
+            uvs_full = (radian1, radian1.flip(0))#gt, swap    3, 16, 2
 
 
         # edit mira start

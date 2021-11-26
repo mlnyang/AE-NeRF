@@ -204,10 +204,10 @@ class ImagesDataset(data.Dataset):
         idx_list = []
         img_idx = randrange(total_len)
         idx_list.append(img_idx)
-        img_idx2 = total_len - (img_idx+1)
-        if img_idx2 in idx_list:
-            img_idx2 += 1
-        idx_list.append(img_idx2)
+        # img_idx2 = total_len - (img_idx+1)
+        # if img_idx2 in idx_list:
+        #     img_idx2 += 1
+        # idx_list.append(img_idx2)
 
         for idx in idx_list:
             img = imageio.imread(rgb_paths[idx])[..., :3]
