@@ -263,13 +263,19 @@ class Trainer(BaseTrainer):
         
         return torch.stack([theta, phi], dim=-1) #16, 2
 
-    #'ㅅ'
+    # #'ㅅ'
+    # def loc2rad(self, loc):
+    #     theta = torch.acos(loc[:, 2])
+    #     phi = torch.acos(loc[:,0]/torch.sin(theta))
+    #     theta, phi = theta * 180 / torch.pi, phi * 180 / torch.pi
+    #     return torch.cat([theta, phi], dim=-1)
+
+    # edit
     def loc2rad(self, loc):
-        theta = torch.acos(loc[:, 2])
-        phi = torch.acos(loc[:,0]/torch.sin(theta))
+        phi = torch.acos(loc[:, 2])
+        theta = torch.acos(loc[:,0]/torch.sin(phi))
         theta, phi = theta * 180 / torch.pi, phi * 180 / torch.pi
         return torch.cat([theta, phi], dim=-1)
-
 
 
     def visualize(self, data, it=0, mode=None, val_idx=None):
@@ -290,7 +296,7 @@ class Trainer(BaseTrainer):
             x_pose = data.get('pose').to(self.device)
             # image_fake, image_fake2, image_swap, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
             # image_fake, image_fake2, image_swap = image_fake.detach(), image_fake2.detach(), image_swap.detach()
-            image_fake, image_swap, image_rand, uvs = self.generator(x_real, x_pose, mode='val', need_uv=True)
+            image_fake, image_swap, image_rand, uvs, radius = self.generator(x_real, x_pose, mode='val', need_uv=True)
             image_fake, image_swap, image_rand = image_fake.detach(), image_swap.detach(), image_rand.detach()
 
             # edit mira end 
@@ -302,7 +308,7 @@ class Trainer(BaseTrainer):
             rotmat1 = x_pose[:,:3,:3]        # x_pose : real pose that includes R,t
             # rotmat2 = x_pose[:, 1][:,:3,:3]        # x_pose : real pose that includes R,t
 
-            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose)),1).unsqueeze(-1)
+            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose)),1).unsqueeze(-1) 
 
             camloc1 = rotmat1@origin
             radian1 = self.loc2rad(camloc1) 

@@ -173,7 +173,7 @@ class ImagesDataset(data.Dataset):
             np.loadtxt(pose_paths[img_idx], dtype=np.float32).reshape(4, 4)
         )
         pose = pose @ self._coord_trans
-
+        
         data = {
             'image': img_tensor,
             'pose': pose

@@ -3,7 +3,7 @@ data:
   dataset_name: images
   path: /root/dataset2/ShapeNet/cars_train
   classes: []
-  img_size: 64
+  img_size: 128
   fid_file: data/fid_files/carla_128.npz
   random_crop: False
   celebA_center_crop: False
@@ -28,7 +28,7 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir: out/delete-rescale
+  out_dir: out/delete-rescale-128-rad-edit
   batch_size: 16
   print_every: 10
   checkpoint_every: 500

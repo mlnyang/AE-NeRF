@@ -173,7 +173,7 @@ class Generator(nn.Module):
                     mode=mode, it=it, not_render_background=not_render_background,
                     only_render_background=only_render_background)
                 rand_rgb = self.neural_renderer(rand_rgb_v)
-                return rgb, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
+                return rgb, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1), self.radius[0].to(self.device)
 
             if need_uv==True:
                 # return rgb, rgb2, swap_rgb, rand_rgb, torch.cat((random_u.unsqueeze(-1), random_v.unsqueeze(-1)), dim=-1)
@@ -222,8 +222,9 @@ class Generator(nn.Module):
 
     def get_random_camera(self, u=None, v=None, batch_size=32, to_device=True): 
         camera_mat = self.camera_matrix.repeat(batch_size, 1, 1)    # intrinsic camera
-        world_mat = get_random_pose(
+        radius, world_mat = get_random_pose(
             u, v, self.range_radius, batch_size)      # (batch, 4, 4)
+        self.radius = radius
         if to_device:
             world_mat = world_mat.to(self.device)
         return camera_mat, world_mat

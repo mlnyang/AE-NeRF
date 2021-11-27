@@ -42,7 +42,7 @@ def get_random_pose(u, v, range_radius, batch_size=16,  # batch size 유동적�
 
     if invert:
         RT = torch.inverse(RT)
-    return RT
+    return radius, RT
 
 
 def get_middle_pose(range_u, range_v, range_radius, batch_size=32,
