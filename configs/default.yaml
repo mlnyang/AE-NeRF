@@ -28,7 +28,7 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir: out/delete-rescale-128-rad-edit
+  out_dir: out/gan
   batch_size: 16
   print_every: 10
   checkpoint_every: 500

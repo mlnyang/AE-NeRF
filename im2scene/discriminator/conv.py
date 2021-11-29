@@ -5,6 +5,7 @@ from im2scene.layers import ResnetBlock
 
 class DCDiscriminator(nn.Module):
     ''' DC Discriminator class.
+
     Args:
         in_dim (int): input dimension
         n_feat (int): features of final hidden layer
@@ -27,7 +28,7 @@ class DCDiscriminator(nn.Module):
         self.conv_out = nn.Conv2d(n_feat, 1, 4, 1, 0, bias=False)
         self.actvn = nn.LeakyReLU(0.2, inplace=True)
 
-    def forward(self, x, **kwargs):
+    def forward(self, x, **kwargs): # default값 들어가는 중 
         batch_size = x.shape[0]
         if x.shape[1] != self.in_dim:
             x = x[:, :self.in_dim]
@@ -41,7 +42,9 @@ class DCDiscriminator(nn.Module):
 
 class DiscriminatorResnet(nn.Module):
     ''' ResNet Discriminator class.
+
     Adopted from: https://github.com/LMescheder/GAN_stability
+
     Args:
         img_size (int): input image size
         nfilter (int): first hidden features

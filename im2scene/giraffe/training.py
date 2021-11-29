@@ -82,17 +82,17 @@ class Trainer(BaseTrainer):
             data (dict): data dictionary
             it (int): training iteration
         '''
-        loss_gen, loss_recon = self.train_step_generator(data, it)
-        # loss_d, reg_d, real_d, swap_d = self.train_step_discriminator(data, it)
+        loss_gen, loss_recon, swap_g = self.train_step_generator(data, it)
+        loss_d, reg_d, real_d, swap_d = self.train_step_discriminator(data, it)
 
         return {
             'gen_total': loss_gen,
             'recon': loss_recon,
-            # 'swap_g': swap_g,
-            # 'disc_total': loss_d,
-            # 'regularizer': reg_d,
-            # 'real_d': real_d,
-            # 'swap_d': swap_d,
+            'swap_g': swap_g,
+            'disc_total': loss_d,
+            'regularizer': reg_d,
+            'real_d': real_d,
+            'swap_d': swap_d,
         }
 
     def eval_step(self):
@@ -149,16 +149,16 @@ class Trainer(BaseTrainer):
 
 
         # d_fake = discriminator(x_fake)
-        # d_swap = discriminator(x_swap)
+        d_swap = discriminator(x_swap)
         # gloss = compute_bce(d_fake, 1)
-        # gloss_swap = compute_bce(d_swap, 1)
+        gloss_swap = compute_bce(d_swap, 1)
 
         loss_recon = self.recon_loss(x_fake, x_real) * self.recon_weight
         # loss_new = self.recon_loss(x_fake2, x_real[1].to(self.device)) * self.recon_weight
 
-        # gen_loss = loss_recon + gloss_swap
+        gen_loss = loss_recon + gloss_swap
         # gen_loss = (loss_new + loss_recon)/2 
-        gen_loss = loss_recon
+        # gen_loss = loss_recon
 
         gen_loss.backward()
         self.optimizer.step()
@@ -166,8 +166,8 @@ class Trainer(BaseTrainer):
         if self.generator_test is not None:
             update_average(self.generator_test, generator, beta=0.999)
 
-        # return gen_loss.item(), loss_recon.item(), gloss_swap.item()
-        return gen_loss.item(), loss_recon.item()
+        return gen_loss.item(), loss_recon.item(), gloss_swap.item()
+        # return gen_loss.item(), loss_recon.item()
 
 
     def train_step_discriminator(self, data, it=None, z=None):
@@ -180,13 +180,10 @@ class Trainer(BaseTrainer):
 
         self.optimizer_d.zero_grad()
 
-        x_real_total = data.get('image')
-        pose_real_total = data.get('pose').to(self.device)
+        x_real = data.get('image').to(self.device)
+        pose_real = data.get('pose').to(self.device)
 
         loss_d_full = 0.
-
-        x_real = x_real_total[0].to(self.device)
-        pose_real = pose_real_total[:, 0]
 
         x_real.requires_grad_()
         d_real = discriminator(x_real)
@@ -200,9 +197,9 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             if self.multi_gpu:
                 latents = generator.module.get_vis_dict(batch_size=x_real.shape[0])
-                x_swap = generator(x_real_total, pose_real_total, **latents)[1]
+                x_swap = generator(x_real, pose_real, **latents)[1]
             else:
-                x_swap = generator(x_real_total, pose_real_total)[1]
+                x_swap = generator(x_real, pose_real)[1]
 
         x_swap.requires_grad_()
         d_swap = discriminator(x_swap)
@@ -302,15 +299,32 @@ class Trainer(BaseTrainer):
             # edit mira end 
 
 
+            # import pdb 
+            # pdb.set_trace()
+            # xyz_rot = torch.matmul(self.poses[:, None, :3, :3], xyz.unsqueeze(-1))[     # xyz를 self.poses로 rotate -> transpose했던거에 다시 연산됨..! -> 헐 그러면 이 상태에서 예측하는건가보다 그러면 이게 sampled points고 앞에 camera가 원래 ray에서...!
+            #                                                                             # 그래야 transformation이 말이 되는 듯.. 근데 그럴거면 왜 transformation을 예측하지..? 
+            #     ..., 0                                                                  # 아무튼 여기가 transform query points into the camera spaces! (self.poses를 곱함!)
+            # ]
+            # # 오키.. def encoder에서 생긴 얘가 여기로 들어감!
+            # xyz = xyz_rot + self.poses[:, None, :3, 3]      # 얘네가 sampling points!     # 아무튼 여기가 transform query points into the camera spaces! (self.poses를 곱함!) 
+
+
+
             # 여기 안을 잘 조정하면 -> swapped view에서도 비슷한 맥락으로 나올 듯 
             # edit 'ㅅ'
             randrad = self.uv2rad(uvs).cuda()        # uv를 radian으로 표현 
             rotmat1 = x_pose[:,:3,:3]        # x_pose : real pose that includes R,t
             # rotmat2 = x_pose[:, 1][:,:3,:3]        # x_pose : real pose that includes R,t
+            # import pdb 
+            # pdb.set_trace()
+            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose)),1).unsqueeze(-1)
 
-            origin = torch.Tensor([0,0,1]).to(self.device).repeat(int(len(x_pose)),1).unsqueeze(-1) 
+            # translation을 먼저 함 
+            # camloc1 = rotmat1@(origin+x_pose[:,:3,3].unsqueeze(-1))   # 얘는 x,y 둘다 못건짐 
+            # camloc1 = rotmat1@origin + x_pose[:,:3,3].unsqueeze(-1)         # rotmat1@origin의 norm은 1, translation까지 더해줘야 함 
+            # camloc1 = camloc1 / torch.norm(camloc1, dim=-2).reshape(-1, 1, 1)
 
-            camloc1 = rotmat1@origin
+            camloc1 = rotmat1@origin    # rotmat1@origin의 norm은 1, translation까지 더해줘야 함 
             radian1 = self.loc2rad(camloc1) 
 
             # camloc2 = rotmat2@origin
