@@ -88,7 +88,7 @@ class Trainer(BaseTrainer):
             it (int): training iteration
         '''
         loss_gen, deterministic_loss, gloss_fake, gloss_mix, gloss_swapcam, ploss_mix, cam_GT_loss, recon_loss = self.train_step_generator(data, it)
-        #loss_d, reg_d, real_d, mix_d, swap_d, fake_d, real_p, mix_p = self.train_step_discriminator(data, it)
+        loss_d, reg_d, real_d, mix_d, swap_d, fake_d, real_p, mix_p = self.train_step_discriminator(data, it)
 
         return {
             'gen': loss_gen,
@@ -100,14 +100,14 @@ class Trainer(BaseTrainer):
             'cam_GT_loss': cam_GT_loss,
             'recon_loss': recon_loss,
 
-            #'disc': loss_d,
-            #'regularizer': reg_d,
-            #'real_d': real_d,
-            #'mix_d': mix_d,
-            #'swap_d': swap_d,
-            #'fake_d': fake_d,
-            #'real_p': real_p,
-            #'mix_p': mix_p,
+            'disc': loss_d,
+            'regularizer': reg_d,
+            'real_d': real_d,
+            'mix_d': mix_d,
+            'swap_d': swap_d,
+            'fake_d': fake_d,
+            'real_p': real_p,
+            'mix_p': mix_p,
         }
 
         # loss_gen, fake_g = self.train_step_generator(data, it)
@@ -210,7 +210,7 @@ class Trainer(BaseTrainer):
         deterministic_loss = torch.zeros(1).to(self.device)'''
         
         # insert gan 
-        '''d_fake = discriminator(x_fake)
+        d_fake = discriminator(x_fake)
         d_mix = discriminator(x_mix)
         d_swapcam = discriminator(x_swapcam)
         #import pdb; pdb.set_trace()
@@ -226,10 +226,10 @@ class Trainer(BaseTrainer):
         else:
             gloss_fake = compute_bce(d_fake, 1)
             gloss_mix = compute_bce(d_mix, 1)
-            gloss_swapcam = compute_bce(d_swapcam, 1)''' #patchgan loss로
-        gloss_fake = torch.zeros(1).cuda()
-        gloss_mix = torch.zeros(1).cuda()
-        gloss_swapcam = torch.zeros(1).cuda()
+            gloss_swapcam = compute_bce(d_swapcam, 1) #patchgan loss로
+        #gloss_fake = torch.zeros(1).cuda()
+        #gloss_mix = torch.zeros(1).cuda()
+        #gloss_swapcam = torch.zeros(1).cuda()
         # gloss_mix = self.gan_loss(self.PattGAN(real_img, fake_img), should_be_classified).mean()
 
 
@@ -245,7 +245,7 @@ class Trainer(BaseTrainer):
                     self.patch_discriminator.discriminate_features(real_feat, mix_feat),
                     should_be_classified_as_real=True,
                 ).mean()
-            gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam + ploss_mix * self.patch_discriminator.lambda_PatchGAN)
+            gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam)/3 + ploss_mix * self.patch_discriminator.lambda_PatchGAN
         else:
             ploss_mix = torch.zeros(1)
             gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam)/3
@@ -446,7 +446,6 @@ class Trainer(BaseTrainer):
         if discriminator_type == 'patchD':
             d_mix_target = make_patchgan_target(d_mix, need_true = False)
             d_loss_mix = patchgan_loss(d_mix, d_mix_target)
-            import pdb; pdb.set_trace()
             loss_d_full += d_loss_mix / 3
             
             d_fake_target = make_patchgan_target(d_fake, need_true = False)
@@ -458,9 +457,11 @@ class Trainer(BaseTrainer):
             loss_d_full += d_loss_swapcam / 3
 
         else:
-            d_loss_fake= compute_bce(d_fake, 0)
+            d_loss_fake = compute_bce(d_fake, 0)
             d_loss_mix = compute_bce(d_mix, 0)
-            d_loss_swapcam= compute_bce(d_swapcam, 0)
+            d_loss_swapcam = compute_bce(d_swapcam, 0)
+            #d_loss_mix = torch.zeros(1).cuda()
+            #d_loss_swapcam = torch.zeros(1).cuda()
             loss_d_full = loss_d_full + (d_loss_fake + d_loss_mix + d_loss_swapcam)/3
 
         # for patch co-occurrence discriminator 

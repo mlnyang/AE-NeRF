@@ -1,1 +1,1 @@
-CUDA_VISIBLE_DEVICES=3 python train.py configs/default.yaml
+CUDA_VISIBLE_DEVICES=0 python train.py configs/default.yaml
