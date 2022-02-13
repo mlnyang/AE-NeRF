@@ -40,6 +40,10 @@ def get_random_pose(u, v, range_radius, batch_size=16,  # batch size 유동적�
     RT[:, :3, :3] = R
     RT[:, :3, -1] = loc
 
+    # NOTICE: normalize since generated cameras have different scale of basis vector
+    RT[:, :3, 0] = RT[:, :3, 0] / torch.norm(RT[:, :3, 0], dim=-1).unsqueeze(-1).repeat(1, 3)
+    RT[:, :3, 1] = RT[:, :3, 1] / torch.norm(RT[:, :3, 1], dim=-1).unsqueeze(-1).repeat(1, 3)
+
     if invert:
         RT = torch.inverse(RT)
     return radius, RT

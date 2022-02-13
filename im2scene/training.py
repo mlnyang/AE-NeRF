@@ -2,6 +2,7 @@ from collections import defaultdict
 from torch import autograd
 import torch.nn.functional as F
 import numpy as np
+import torch
 
 
 class BaseTrainer(object):
@@ -14,7 +15,7 @@ class BaseTrainer(object):
         eval_list = defaultdict(list)
 
         # for data in tqdm(val_loader):
-        eval_step_dict = self.eval_step()
+        eval_step_dict = self.eval_step(data)
 
         for k, v in eval_step_dict.items():
             eval_list[k].append(v)
@@ -73,3 +74,8 @@ def compute_bce(d_out, target):
     return loss
 
 
+def make_patchgan_target(source, need_true = True):
+    if need_true:
+        return torch.ones_like(source)
+    else:
+        return torch.zeros_like(source)

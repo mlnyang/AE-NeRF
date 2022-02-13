@@ -1,5 +1,5 @@
 import os
-from im2scene.discriminator import discriminator_dict
+from im2scene.discriminator import discriminator_patchD_dict, discriminator_plainD_dict, patch_discriminator_dict
 from im2scene.giraffe import models, training, rendering
 from copy import deepcopy
 import numpy as np
@@ -15,10 +15,13 @@ def get_model(cfg, device=None, len_dataset=0, **kwargs):
     '''
     decoder = cfg['model']['decoder']
     discriminator = cfg['model']['discriminator']
+    patch_discriminator = cfg['model']['patch_discriminator']   
     generator = cfg['model']['generator']
     background_generator = cfg['model']['background_generator']
     decoder_kwargs = cfg['model']['decoder_kwargs']
     discriminator_kwargs = cfg['model']['discriminator_kwargs']
+    discriminator_kwargs = cfg['model']['discriminator_kwargs']
+    patch_discriminator_kwargs = cfg['model']['patch_discriminator_kwargs']
     generator_kwargs = cfg['model']['generator_kwargs']
     background_generator_kwargs = \
         cfg['model']['background_generator_kwargs']
@@ -38,29 +41,36 @@ def get_model(cfg, device=None, len_dataset=0, **kwargs):
         z_dim=z_dim, **decoder_kwargs
     )
 
-    if discriminator is not None:
+    '''if discriminator is not None:
         discriminator = discriminator_dict[discriminator](
-            img_size=img_size, **discriminator_kwargs)
-    if background_generator is not None:
-        background_generator = \
-            models.background_generator_dict[background_generator](
-                z_dim=z_dim_bg, **background_generator_kwargs)
-    if bounding_box_generator is not None:
-        bounding_box_generator = \
-            models.bounding_box_generator_dict[bounding_box_generator](
-                z_dim=z_dim, **bounding_box_generator_kwargs)
+            img_size=img_size, **discriminator_kwargs) #plainD
+        print('Using plainD')'''
+    if discriminator is not None:
+        if discriminator == 'dc':
+            discriminator = discriminator_plainD_dict[discriminator](
+                img_size=img_size, **discriminator_kwargs) #plainD
+            print('Using plainD')
+        else:
+            discriminator = discriminator_patchD_dict[discriminator](
+                input_nc=3, **discriminator_kwargs)
+            print('Using patchD')
+    if patch_discriminator is not None:
+        if patch_discriminator == 'patch':
+            patch_discriminator = patch_discriminator_dict[patch_discriminator](
+                **patch_discriminator_kwargs)
+        else:
+            patch_discriminator = None
+            print('no patch cooccurrence')
     if neural_renderer is not None:
         neural_renderer = models.neural_renderer_dict[neural_renderer](
             z_dim=z_dim, img_size=img_size, **neural_renderer_kwargs
         )
-
     if generator is not None:
         generator = models.generator_dict[generator](
             device, z_dim=z_dim, z_dim_bg=z_dim_bg, decoder=decoder,
             background_generator=background_generator,
             bounding_box_generator=bounding_box_generator,
-            neural_renderer=neural_renderer, range_u=range_u, range_v= range_v, **generator_kwargs)
-
+            neural_renderer=neural_renderer, range_u=range_u, range_v= range_v, img_size=img_size, **generator_kwargs)
     if cfg['test']['take_generator_average']:
         generator_test = deepcopy(generator)
     else:
@@ -68,7 +78,7 @@ def get_model(cfg, device=None, len_dataset=0, **kwargs):
 
     model = models.GIRAFFE(
         device=device,
-        discriminator=discriminator, generator=generator,
+        discriminator=discriminator, generator=generator, patch_discriminator = patch_discriminator,
         generator_test=generator_test,
     )
     return model
@@ -97,6 +107,7 @@ def get_trainer(model, optimizer, optimizer_d, cfg, device, **kwargs):
     fid_dict = np.load(fid_file)
     batch_size = cfg['training']['batch_size']
     recon_weight = cfg['training']['recon_weight']
+    cam_loss_weight = cfg['training']['cam_loss_weight']
 
     trainer = training.Trainer(
         model, optimizer, optimizer_d, device=device, vis_dir=vis_dir, val_vis_dir=val_vis_dir,
@@ -104,7 +115,7 @@ def get_trainer(model, optimizer, optimizer_d, cfg, device, **kwargs):
         fid_dict=fid_dict,
         n_eval_iterations=n_eval_iterations,
         batch_size = batch_size,
-        recon_weight = recon_weight
+        recon_weight = recon_weight, cam_loss_weight = cam_loss_weight
     )
 
     return trainer

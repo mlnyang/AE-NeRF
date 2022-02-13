@@ -26,7 +26,8 @@ class DCDiscriminator(nn.Module):
                     4, 2, 1, bias=False) for i in range(1, n_layers)])
 
         self.conv_out = nn.Conv2d(n_feat, 1, 4, 1, 0, bias=False)
-        self.actvn = nn.LeakyReLU(0.2, inplace=True)
+        self.actvn = nn.LeakyReLU(0.2, inplace=True)        
+
 
     def forward(self, x, **kwargs): # default값 들어가는 중 
         batch_size = x.shape[0]
@@ -87,3 +88,6 @@ class DiscriminatorResnet(nn.Module):
         out = out.view(batch_size, self.nf0*self.s0*self.s0)
         out = self.fc(self.actvn(out))
         return out
+
+
+
