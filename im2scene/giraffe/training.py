@@ -87,6 +87,7 @@ class Trainer(BaseTrainer):
             data (dict): data dictionary
             it (int): training iteration
         '''
+        # test for git
         loss_gen, deterministic_loss, gloss_fake, gloss_mix, gloss_swapcam, ploss_mix, cam_GT_loss, recon_loss = self.train_step_generator(data, it)
         loss_d, reg_d, real_d, mix_d, swap_d, fake_d, real_p, mix_p = self.train_step_discriminator(data, it)
 
