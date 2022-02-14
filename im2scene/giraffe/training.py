@@ -88,7 +88,7 @@ class Trainer(BaseTrainer):
             it (int): training iteration
         '''
         # test for git
-        loss_gen, deterministic_loss, gloss_fake, gloss_mix, gloss_swapcam, ploss_mix, cam_GT_loss, recon_loss = self.train_step_generator(data, it)
+        loss_gen, deterministic_loss, gloss_fake, gloss_mix, gloss_swapcam, ploss_mix, cam_GT_loss, recon_loss, kl_loss = self.train_step_generator(data, it)
         loss_d, reg_d, real_d, mix_d, swap_d, fake_d, real_p, mix_p = self.train_step_discriminator(data, it)
 
         return {
@@ -100,6 +100,7 @@ class Trainer(BaseTrainer):
             'mix_p': ploss_mix,
             'cam_GT_loss': cam_GT_loss,
             'recon_loss': recon_loss,
+            'kl_loss': kl_loss, 
 
             'disc': loss_d,
             'regularizer': reg_d,
@@ -186,8 +187,15 @@ class Trainer(BaseTrainer):
         gt_rot = pose_real[:, :3, :3]
         #gt_scale = torch.tensor([1.]).reshape(-1, 1).repeat(len(gt_rot), 1).to(self.device)
         
+        # kyusun Edit
+        import copy
+        KL_Encoder = copy.deepcopy(generator.ViT)
+        _, _, app_code = KL_Encoder(x_real)
+        kl_loss = self._l2_regularize(app_code) * 0.01    
+        
+        # Kyusun Edit End
+        
         if self.multi_gpu:
-            latents = generator.module.get_vis_dict(x_real.shape[0])
             x_fake, x_mix, pred_cam, x_swapcam = generator(x_real, pose_real, **latents)       
 
         else:
@@ -246,10 +254,10 @@ class Trainer(BaseTrainer):
                     self.patch_discriminator.discriminate_features(real_feat, mix_feat),
                     should_be_classified_as_real=True,
                 ).mean()
-            gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam)/3 + ploss_mix * self.patch_discriminator.lambda_PatchGAN
+            gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam)/3 + ploss_mix * self.patch_discriminator.lambda_PatchGAN + kl_loss
         else:
             ploss_mix = torch.zeros(1)
-            gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam)/3
+            gen_loss = deterministic_loss + (gloss_fake + gloss_mix + gloss_swapcam)/3 + kl_loss
         
  
         gen_loss.backward()
@@ -259,7 +267,7 @@ class Trainer(BaseTrainer):
             update_average(self.generator_test, generator, beta=0.999)
 
         return gen_loss.item(), deterministic_loss.item(), gloss_fake.item(), gloss_mix.item(), gloss_swapcam.item(), \
-                                        ploss_mix.item(), cam_GT_loss.item(), recon_loss.item()
+                                        ploss_mix.item(), cam_GT_loss.item(), recon_loss.item(), kl_loss.item(),
 
 
     def gan_loss(self, pred, should_be_classified_as_real):
@@ -671,3 +679,9 @@ class Trainer(BaseTrainer):
             save_image(image_grid, os.path.join(self.vis_dir, out_file_name))
             # self.record_uvs(uvs_full, os.path.join(self.vis_dir), it)
         return image_grid, psnr, ssim
+    
+    
+    def _l2_regularize(self, mu):
+        mu_2 = torch.pow(mu, 2)
+        encoding_loss = torch.mean(mu_2)
+        return encoding_loss

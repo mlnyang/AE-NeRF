@@ -145,7 +145,7 @@ class ImagesDataset(data.Dataset):
 
         self.images = images
         self.length = len(images)
-        self.pose_path = '/workspace/media/dataset1/jaehoon/carla/carla_poses'
+        self.pose_path = 'data/carla/carla_poses'
         self._coord_trans = torch.diag(
             torch.tensor([1, -1, -1, 1], dtype=torch.float32)
         )

@@ -1,10 +1,10 @@
 method: giraffe
 data:
   dataset_name: images
-  path: /workspace/media/dataset1/jaehoon/carla/*.png
+  path: data/carla/carla_images/*.png
   classes: []
   img_size: 256
-  fid_file: /workspace/media/dataset1/jaehoon/fid_files/carla_256.npz
+  fid_file: data/carla/fid_files/carla_256.npz
   random_crop: False
   celebA_center_crop: False
   use_tanh_range: False
@@ -50,7 +50,7 @@ model:
     downscale_p_by: 12
     skips: []
 training:
-  out_dir: out/reconcamgan_256_withswapgan_p
+  out_dir: out/temp
   batch_size: 16
   print_every: 10
   checkpoint_every: 10000
